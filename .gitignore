@@ -161,3 +161,8 @@ cython_debug/
 
 test.py
 *.csv
+!examples/*.csv
+!tests/fixtures/*.csv
+testbed-manifest.json
+.DS_Store
+*.xlsx

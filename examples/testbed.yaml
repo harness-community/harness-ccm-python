@@ -1,0 +1,48 @@
+# Aimed at the category seed_testbed.py creates. testbed-budgets.csv is the
+# allow-list and supplies names, folders, month amounts, and alerts.
+cost_category: AccountBudgets-testbed
+account_fields:
+  - awsUsageaccountid
+  - azureSubscriptionGuid
+  - gcpProjectId
+perspective:
+  folder: "{folder}"
+  name: "{account_name}"
+  rule_mode: category_and_account
+budget:
+  name: "{account_name}"
+  type: SPECIFIED_AMOUNT
+  alerts: []
+spreadsheet:
+  file: testbed-budgets.csv
+  key: account
+  only: true
+  columns:
+    account_id: Account ID
+    account_name: Account Name
+    bucket: Cost Bucket
+    folder: Cost Bucket
+    amount: FY27 Total
+    recipients: Alerting recipients
+    months: 2026-04
+    # One Y/N column can drive both ACTUAL and FORECASTED thresholds.
+    alerts:
+      - header: Alert 80%
+        percentage: 80
+        based_on: ACTUAL_COST
+      - header: Alert 100%
+        percentage: 100
+        based_on: ACTUAL_COST
+      - header: Alert 80%
+        percentage: 80
+        based_on: FORECASTED_COST
+      - header: Alert 100%
+        percentage: 100
+        based_on: FORECASTED_COST
+budget_group:
+  enabled: true
+  name: "{folder}"
+  cascade: NO_CASCADE
+behavior:
+  on_exists: skip
+  manifest: testbed-manifest.json

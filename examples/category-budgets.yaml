@@ -1,0 +1,31 @@
+# One file, two cost categories, each with its own budget value and period.
+# Account budgets use that category's amount. A bucket override replaces it
+# for the accounts in that bucket. The budget group amount is the sum.
+perspective:
+  folder: "{category}/{bucket}"
+  name: "{bucket} - {account_label}"
+budget:
+  name: "{perspective_name}"
+  type: SPECIFIED_AMOUNT
+  start: month_start
+budget_group:
+  enabled: true
+  name: "{category} - {bucket}"
+  cascade: NO_CASCADE
+behavior:
+  on_exists: skip
+categories:
+  - cost_category: AccountBudgets
+    buckets:
+      include:
+        - platform
+    budget:
+      period: MONTHLY
+      amount: 1500
+      monthly_breakdown: false
+  - cost_category: CostCenterByAccount
+    budget:
+      period: ANNUAL
+      amount: 12000
+      monthly_breakdown: true
+      start: year_start

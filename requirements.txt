@@ -1,1 +1,4 @@
+# Generated for pip users from pyproject.toml dependencies.
 requests
+PyYAML
+openpyxl

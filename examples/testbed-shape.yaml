@@ -1,0 +1,10 @@
+# Synthetic bucket names and account counts for the local test bed.
+# Labels created by seed_testbed.py are generated. They are not real account ids.
+category: AccountBudgets-testbed
+buckets:
+  - name: platform
+    accounts: 2
+  - name: billing
+    accounts: 2
+  - name: security
+    accounts: 1

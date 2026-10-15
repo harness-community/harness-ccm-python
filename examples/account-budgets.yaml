@@ -1,0 +1,34 @@
+cost_category: AccountBudgets
+buckets:
+  include:
+    - platform
+  exclude:
+    - security
+account_fields:
+  - awsUsageaccountid
+  - azureSubscriptionGuid
+  - gcpProjectId
+perspective:
+  folder: "{folder}"
+  name: "{account_name}"
+  rule_mode: category_and_account
+budget:
+  name: "{account_name}"
+  type: PREVIOUS_PERIOD_SPEND
+  period: MONTHLY
+  amount: null
+  monthly_breakdown: false
+  start: month_start
+  alerts: []
+# Each cost category has its own budget block. Inside one category, override a
+# bucket with buckets.budgets.<bucket>:
+#   period: YEARLY          # or ANNUAL
+#   amount: 12000
+#   monthly_breakdown: true # annual budgets only; omit monthly_amounts to split amount across 12 months
+#   start: year_start
+budget_group:
+  enabled: true
+  name: "{folder}"
+  cascade: NO_CASCADE
+behavior:
+  on_exists: skip
