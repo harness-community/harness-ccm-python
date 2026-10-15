@@ -1,12 +1,6 @@
-from os import getenv
 from enum import Enum
 
-from requests import get, put, post
-
-
-HEADERS = {
-    "x-api-key": getenv("HARNESS_PLATFORM_API_KEY"),
-}
+from harness import as_list, entity_id, request
 
 
 class CloudAccount:
@@ -98,24 +92,18 @@ class Split:
 
 
 class SharedBucket(Bucket):
-    def __init__(self, name: str, strategy: str, splits: list[Split] = []):
+    def __init__(self, name: str, strategy: str, splits: list = None):
         super().__init__(name)
         self.strategy = strategy
-        self.splits = splits
+        self.splits = splits or []
 
     def __repr__(self) -> str:
         return super().__repr__() + f" {self.strategy}: {len(self.splits)} splits"
 
     def format(self) -> dict:
-        # payload = {"strategy": self.strategy}
-        # if self.splits:
-        #     payload | {"splits": [split.format() for split in self.splits] }
-
         return super().format() | {
             "strategy": self.strategy,
-            "splits": [split.format() for split in self.splits]
-            if self.splits
-            else None,
+            "splits": [split.format() for split in self.splits] if self.splits else None,
         }
 
 
@@ -124,27 +112,25 @@ class CostCategory:
         self,
         name: str,
         uuid: str = "",
-        buckets: list[Bucket] = [],
-        shared_buckets: list[SharedBucket] = [],
+        buckets: list = None,
+        shared_buckets: list = None,
         create: bool = False,
     ):
         self.name = name
+        self.uuid = uuid or None
+        self.buckets = list(buckets or [])
+        self.shared_buckets = list(shared_buckets or [])
 
-        # if existing cc get its id
-        if not uuid:
-            if all_cc := [
-                x.get("uuid")
-                for x in CostCategory.get_all()
-                if x.get("name") == self.name
-            ]:
-                self.uuid = all_cc.pop()
+        if not self.uuid:
+            matched = [
+                item.get("uuid")
+                for item in CostCategory.get_all()
+                if item.get("name") == self.name
+            ]
+            if matched:
+                self.uuid = matched[0]
             elif create:
                 self.create()
-            else:
-                self.uuid = None
-
-        self.buckets = buckets
-        self.shared_buckets = shared_buckets
 
     def __repr__(self) -> str:
         category = f"Cost Category: {self.name} ({self.uuid})"
@@ -155,21 +141,22 @@ class CostCategory:
     def add(self, bucket: Bucket):
         self.buckets.append(bucket)
 
-    def payload(self, cost_targets: list = [], shared_buckets: list = []) -> dict:
-        if not cost_targets:
-            for bucket in self.buckets:
-                cost_targets.append(bucket.format())
+    def payload(self, cost_targets: list = None, shared_buckets: list = None) -> dict:
+        from harness import account_id
 
-        if not shared_buckets:
-            for bucket in self.shared_buckets:
-                shared_buckets.append(bucket.format())
+        targets = list(cost_targets or [])
+        shared = list(shared_buckets or [])
+        if not targets:
+            targets = [bucket.format() for bucket in self.buckets]
+        if not shared:
+            shared = [bucket.format() for bucket in self.shared_buckets]
 
         return {
-            "accountId": getenv("HARNESS_ACCOUNT_ID"),
+            "accountId": account_id(),
             "name": self.name,
             "uuid": self.uuid,
-            "costTargets": cost_targets,
-            "sharedCosts": shared_buckets,
+            "costTargets": targets,
+            "sharedCosts": shared,
             "unallocatedCost": {
                 "strategy": "DISPLAY_NAME",
                 "label": "Unattributed",
@@ -178,67 +165,45 @@ class CostCategory:
             },
         }
 
-    def update(self, cost_targets: list = [], shared_buckets: list = []) -> bool:
-        # given a list of cost targets update an existing cost catagory
-
+    def update(self, cost_targets: list = None, shared_buckets: list = None) -> bool:
         if not self.uuid:
-            return self.create(cost_targets)
-        else:
-            resp = put(
-                f"https://{getenv('HARNESS_URL')}/gateway/ccm/api/business-mapping",
-                params={
-                    "accountIdentifier": getenv("HARNESS_ACCOUNT_ID"),
-                },
-                headers=HEADERS,
-                json=self.payload(cost_targets, shared_buckets),
-            )
-
-            resp.raise_for_status()
-
-            return resp.status_code == 200
-
-    def create(self, cost_targets: list = [], shared_buckets: list = []) -> bool:
-        # given a list of cost targets create a cost catagory
-
-        resp = post(
-            f"https://{getenv('HARNESS_URL')}/gateway/ccm/api/business-mapping",
-            params={
-                "accountIdentifier": getenv("HARNESS_ACCOUNT_ID"),
-            },
-            headers=HEADERS,
+            return self.create(cost_targets, shared_buckets)
+        request(
+            "PUT",
+            "business-mapping",
             json=self.payload(cost_targets, shared_buckets),
         )
+        return True
 
-        resp.raise_for_status()
-
-        if resp.status_code == 200:
-            self.uuid = resp.json().get("resource", {}).get("uuid")
-            return True
-
-        return False
-
-    def get_all() -> list:
-        # get all the cost catagories in an account
-
-        resp = get(
-            f"https://{getenv('HARNESS_URL')}/ccm/api/business-mapping",
-            params={"accountIdentifier": getenv("HARNESS_ACCOUNT_ID"), "limit": 100},
-            headers=HEADERS,
+    def create(self, cost_targets: list = None, shared_buckets: list = None) -> bool:
+        body = request(
+            "POST",
+            "business-mapping",
+            json=self.payload(cost_targets, shared_buckets),
         )
+        self.uuid = entity_id(body)
+        return bool(self.uuid)
 
-        resp.raise_for_status()
-
-        return resp.json().get("resource", {}).get("businessMappings", [])
+    @staticmethod
+    def get_all() -> list:
+        body = request(
+            "GET",
+            "ccm/api/business-mapping",
+            params={"limit": 100},
+            via_gateway=False,
+        )
+        if isinstance(body, dict):
+            resource = body.get("resource") or body.get("data") or body
+            if isinstance(resource, dict) and isinstance(
+                resource.get("businessMappings"), list
+            ):
+                return resource["businessMappings"]
+        return as_list(body)
 
     def get(self) -> dict:
-        # get the content of a cc
-
-        resp = get(
-            f"https://{getenv('HARNESS_URL')}/ccm/api/business-mapping/{self.uuid}",
-            params={"accountIdentifier": getenv("HARNESS_ACCOUNT_ID"), "limit": 100},
-            headers=HEADERS,
+        return request(
+            "GET",
+            f"ccm/api/business-mapping/{self.uuid}",
+            params={"limit": 100},
+            via_gateway=False,
         )
-
-        resp.raise_for_status()
-
-        return resp.json()

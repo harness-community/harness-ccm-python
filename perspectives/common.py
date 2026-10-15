@@ -1,15 +1,4 @@
-from os import getenv
-
-from requests import get, post
-
-PARAMS = {
-    "routingId": getenv("HARNESS_ACCOUNT_ID"),
-    "accountIdentifier": getenv("HARNESS_ACCOUNT_ID"),
-}
-
-HEADERS = {
-    "x-api-key": getenv("HARNESS_PLATFORM_API_KEY"),
-}
+from harness import entity_id, request
 
 
 class Folder:
@@ -20,41 +9,32 @@ class Folder:
         create: bool = False,
     ):
         self.name = name
+        self.uuid = uuid or None
 
-        # if existing folder get its id
-        # otherwise create it
-        if not uuid:
-            if all_cc := [
-                x.get("uuid") for x in Folder.get_all() if x.get("name") == self.name
-            ]:
-                self.uuid = all_cc.pop()
+        if not self.uuid:
+            matched = [
+                item.get("uuid")
+                for item in Folder.get_all()
+                if item.get("name") == self.name
+            ]
+            if matched:
+                self.uuid = matched[0]
             elif create:
                 self.create()
-            else:
-                self.uuid = None
 
     def create(self):
-        resp = post(
-            f"https://{getenv('HARNESS_URL')}/gateway/ccm/api/perspectiveFolders/create",
-            params=PARAMS,
-            headers=HEADERS,
+        body = request(
+            "POST",
+            "perspectiveFolders/create",
             json={"ceViewFolder": {"name": self.name}, "perspectiveIds": []},
         )
+        self.uuid = entity_id(body)
 
-        resp.raise_for_status()
-
-        self.uuid = resp.json().get("data", {}).get("uuid")
-
+    @staticmethod
     def get_all():
-        resp = get(
-            f"https://{getenv('HARNESS_URL')}/gateway/ccm/api/perspectiveFolders",
-            params=PARAMS,
-            headers=HEADERS,
-        )
-
-        resp.raise_for_status()
-
-        return resp.json().get("data", [])
+        body = request("GET", "perspectiveFolders")
+        data = body.get("data", []) if isinstance(body, dict) else []
+        return data if isinstance(data, list) else []
 
     def __repr__(self):
         return f"Perspective Folder: {self.name} ({self.uuid})"
