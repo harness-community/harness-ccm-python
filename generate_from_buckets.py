@@ -28,6 +28,12 @@ def main(argv=None) -> int:
         help="write created ids to this JSON file (overrides behavior.manifest)",
     )
     parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="print every would-create line, request payload, and skipped item",
+    )
+    parser.add_argument(
         "--spreadsheet",
         help="budget workbook or csv (overrides spreadsheet.file)",
     )
@@ -53,6 +59,7 @@ def main(argv=None) -> int:
                 limit=args.limit,
                 manifest_path=manifest,
                 category=loaded,
+                verbose=args.verbose,
             )
             failed = failed or bool(result["errors"])
     except ValueError as exc:

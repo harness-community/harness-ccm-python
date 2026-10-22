@@ -7,6 +7,19 @@ from provision.models import ExecutionResult, PlanIssue
 from provision.payloads import budget_group_payload, budget_payload
 from provision.plan import fiscal_year_name
 
+VERBOSE = False
+
+
+def set_verbose(value: bool) -> None:
+    global VERBOSE
+    VERBOSE = bool(value)
+
+
+def _detail(text: str) -> None:
+    """Per-item dry-run chatter and payloads; only shown with --verbose."""
+    if VERBOSE:
+        print(text)
+
 
 def execute_plan(
     config: dict,
@@ -17,11 +30,9 @@ def execute_plan(
     stats: dict,
 ) -> list:
     errors = list(plan.errors)
-    if plan.errors:
-        for item in plan.errors:
-            print(_issue_text(item))
-        if not dry_run:
-            return errors
+    # Plan errors are reported once, in the consolidated section at the end.
+    if plan.errors and not dry_run:
+        return errors
 
     folder_ids = {}
     perspective_ids = {}
@@ -125,7 +136,7 @@ def _ensure_folder(action, harness, dry_run, manifest, errors, stats):
     if action.operation == "reuse":
         return {"name": action.name, "uuid": action.existing_uuid}
     if dry_run:
-        print(f"would create folder {action.name}")
+        _detail(f"would create folder {action.name}")
         stats["folders"] += 1
         return {"name": action.name, "uuid": None}
     try:
@@ -150,7 +161,7 @@ def _ensure_folder(action, harness, dry_run, manifest, errors, stats):
 
 def _ensure_perspective(action, folder_id, harness, dry_run, manifest, errors, stats):
     if action.operation == "skip":
-        print(f"skip perspective {action.name}")
+        _detail(f"skip perspective {action.name}")
         return {
             "name": action.name,
             "uuid": action.existing_uuid,
@@ -161,9 +172,9 @@ def _ensure_perspective(action, folder_id, harness, dry_run, manifest, errors, s
         update_payload = perspective_payload(action.name, kept_folder, action.conditions)
         update_payload["uuid"] = action.existing_uuid
         if dry_run:
-            print(f"would update perspective {action.name}")
+            _detail(f"would update perspective {action.name}")
             stats["updated_perspectives"] += 1
-            print(dumps(update_payload, indent=2))
+            _detail(dumps(update_payload, indent=2))
             return {
                 "name": action.name,
                 "uuid": action.existing_uuid,
@@ -180,9 +191,9 @@ def _ensure_perspective(action, folder_id, harness, dry_run, manifest, errors, s
 
     payload = perspective_payload(action.name, folder_id, action.conditions)
     if dry_run:
-        print(f"would create perspective {action.name}")
+        _detail(f"would create perspective {action.name}")
         stats["perspectives"] += 1
-        print(dumps(payload, indent=2))
+        _detail(dumps(payload, indent=2))
         return {"name": action.name, "uuid": "<dry-run>", "created": False}
     try:
         created = harness.create_perspective(payload)
@@ -220,12 +231,12 @@ def _ensure_budget(action, perspective, folder_id, harness, dry_run, manifest, e
         folder_id,
     )
     if action.operation == "skip":
-        print(f"skip budget {action.name}")
+        _detail(f"skip budget {action.name}")
         return _budget_result(action, action.existing_uuid, action.existing_amount, False)
     if action.operation == "update":
         if dry_run:
-            print(f"would update budget {action.name}")
-            print(dumps(payload, indent=2))
+            _detail(f"would update budget {action.name}")
+            _detail(dumps(payload, indent=2))
             stats["updated_budgets"] += 1
             return _budget_result(
                 action,
@@ -248,9 +259,9 @@ def _ensure_budget(action, perspective, folder_id, harness, dry_run, manifest, e
         )
 
     if dry_run:
-        print(f"would create budget {action.name}")
+        _detail(f"would create budget {action.name}")
         stats["budgets"] += 1
-        print(dumps(payload, indent=2))
+        _detail(dumps(payload, indent=2))
         return _budget_result(
             action,
             "<dry-run>",
@@ -305,12 +316,12 @@ def _ensure_group(config, action, children, harness, dry_run, manifest, errors, 
         payload["name"] = fiscal_year_name(action.name, action.start_time)
 
     if action.operation == "skip":
-        print(f"skip budget group {action.name}")
+        _detail(f"skip budget group {action.name}")
         return
     if action.operation == "update":
         if dry_run:
-            print(f"would update budget group {action.name}")
-            print(dumps(payload, indent=2))
+            _detail(f"would update budget group {action.name}")
+            _detail(dumps(payload, indent=2))
             stats["updated_groups"] += 1
             return
         try:
@@ -323,9 +334,9 @@ def _ensure_group(config, action, children, harness, dry_run, manifest, errors, 
         return
 
     if dry_run:
-        print(f"would create budget group {action.name}")
+        _detail(f"would create budget group {action.name}")
         stats["groups"] += 1
-        print(dumps(payload, indent=2))
+        _detail(dumps(payload, indent=2))
         return
     try:
         created = harness.create_budget_group(payload)

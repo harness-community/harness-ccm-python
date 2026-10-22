@@ -1,5 +1,5 @@
 from costcategories import CostCategory
-from provision.execute import execute_plan
+from provision.execute import execute_plan, set_verbose
 from provision.live import LiveHarness
 from provision.manifest import load_manifest, save_manifest
 from provision.models import PlanIssue, public_issues
@@ -27,8 +27,10 @@ def generate(
     manifest_path: str = None,
     harness=None,
     category: dict = None,
+    verbose: bool = False,
 ) -> dict:
     dry_run = not apply
+    set_verbose(verbose)
     if harness is None:
         harness = LiveHarness()
     if limit is None:
@@ -47,9 +49,6 @@ def generate(
         category=category,
     )
 
-    for warning in plan.warnings:
-        print(warning)
-
     manifest = load_manifest(manifest_path) if not dry_run else None
     stats = {
         "folders": 0,
@@ -64,11 +63,7 @@ def generate(
 
     try:
         if plan.errors and not dry_run:
-            for item in plan.errors:
-                issue = item if isinstance(item, PlanIssue) else PlanIssue(**item)
-                print(
-                    f"error {issue.kind.replace('_', ' ')} {issue.name}: {issue.error}"
-                )
+            pass  # reported in the summary below; nothing is written
         else:
             errors = execute_plan(
                 config, plan, harness, dry_run, manifest, stats
@@ -80,14 +75,7 @@ def generate(
             manifest["skipped"] = plan.skipped
             save_manifest(manifest_path, manifest)
 
-    for skipped in plan.skipped:
-        account = skipped.get("account")
-        if account:
-            print(
-                f"skipped account {account} in {skipped['bucket']}: {skipped['reason']}"
-            )
-        else:
-            print(f"skipped bucket {skipped['bucket']}: {skipped['reason']}")
+    _print_skipped(plan.skipped, verbose)
 
     action = "would create" if dry_run else "created"
     print(
@@ -108,6 +96,8 @@ def generate(
             errors=len(errors),
         )
     )
+    _print_issues("Warnings", plan.warnings)
+    _print_issues("Errors", [_issue_line(item) for item in errors])
     return {
         "dry_run": dry_run,
         "accounts": plan.account_count,
@@ -115,3 +105,31 @@ def generate(
         "skipped": plan.skipped,
         "plan": plan,
     }
+
+
+def _issue_line(item) -> str:
+    if isinstance(item, PlanIssue):
+        kind, name, error = item.kind, item.name, item.error
+    else:
+        kind, name, error = item["kind"], item["name"], item["error"]
+    return f"{kind.replace('_', ' ')} {name}: {error}"
+
+
+def _print_issues(title: str, lines: list) -> None:
+    if not lines:
+        return
+    print(f"\n=== {title} ({len(lines)}) ===")
+    for number, line in enumerate(lines, 1):
+        print(f"{number:>3}. {line}")
+
+
+def _print_skipped(skipped: list, verbose: bool) -> None:
+    if not skipped:
+        return
+    if verbose:
+        for item in skipped:
+            account = item.get("account")
+            where = f"account {account} in {item['bucket']}" if account else f"bucket {item['bucket']}"
+            print(f"skipped {where}: {item['reason']}")
+        return
+    print(f"skipped {len(skipped)} account(s)/bucket(s) (use --verbose to list)")

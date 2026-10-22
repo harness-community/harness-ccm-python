@@ -239,7 +239,15 @@ def name_warning(kind: str, name: str) -> str:
     length = len(name)
     if 1 <= length <= BUDGET_NAME_MAX:
         return None
-    return f"{kind} name length {length} is outside 1..{BUDGET_NAME_MAX}: {name}"
+    hint = ""
+    if length > BUDGET_NAME_MAX:
+        hint = (
+            f" (over by {length - BUDGET_NAME_MAX}; names are never truncated "
+            "automatically - shorten the account name in the spreadsheet, map "
+            "columns.account_name to a column without the '(account id)' suffix, "
+            "or use a shorter name template)"
+        )
+    return f"{kind} name length {length} is outside 1..{BUDGET_NAME_MAX}: {name}{hint}"
 
 
 def alert_payloads(alerts: list) -> list:

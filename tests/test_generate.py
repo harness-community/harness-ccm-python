@@ -716,6 +716,25 @@ class GenerateTest(unittest.TestCase):
         groups = [attempt for attempt in harness.attempts if attempt[0] == "group"]
         self.assertEqual(groups, [])
 
+    def test_dry_run_prints_consolidated_errors_last(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+
+        label = "platform account " * 6 + "(123456789012)"
+        targets = [
+            {
+                "name": "platform",
+                "rules": [{"viewConditions": [_account([label])]}],
+            }
+        ]
+        output = StringIO()
+        with redirect_stdout(output):
+            generate(_config(), targets, apply=False, harness=FakeHarness())
+        text = output.getvalue()
+        self.assertIn("=== Errors (1) ===", text)
+        self.assertNotIn('"budgetAmount"', text)
+        self.assertTrue(text.rstrip().splitlines()[-1].startswith("  1. budget"))
+
     def test_rejected_name_is_not_shortened(self):
         label = "platform account " * 6 + "(123456789012)"
         self.assertGreater(len(label), 80)

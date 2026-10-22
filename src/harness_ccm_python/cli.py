@@ -23,6 +23,12 @@ def main(argv=None) -> int:
         action="store_true",
         help="create resources; without this flag the run only prints payloads",
     )
+    generate.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="print every would-create line, request payload, and skipped item",
+    )
     generate.add_argument("--limit", type=int, help="maximum number of accounts")
     generate.add_argument("--manifest", help="write created ids to this JSON file")
     generate.add_argument(
@@ -63,6 +69,8 @@ def main(argv=None) -> int:
         argv = [args.config]
         if args.apply:
             argv.append("--apply")
+        if args.verbose:
+            argv.append("--verbose")
         if args.limit is not None:
             argv.extend(["--limit", str(args.limit)])
         if args.manifest:

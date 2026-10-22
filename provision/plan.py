@@ -264,11 +264,21 @@ def _plan_group(config, remote, on_exists, bucket, children, plan):
         )
         return
     if len(folders) != 1:
+        by_folder = defaultdict(list)
+        for child in children:
+            by_folder[child.folder].append(child.name)
+        detail = "; ".join(
+            f"{folder!r}: {len(names)} budget(s), e.g. {names[0]}"
+            for folder, names in sorted(by_folder.items())
+        )
         _issue(
             plan,
             "budget_group",
             bucket,
-            "account budgets in a cost bucket must use the same folder",
+            "account budgets in a cost bucket must use the same folder "
+            f"(found {len(by_folder)}: {detail}). Make the spreadsheet folder "
+            "column identical for every row in this bucket, or map "
+            "spreadsheet.columns.folder to the bucket column",
         )
         return
 
